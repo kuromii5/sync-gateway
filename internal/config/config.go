@@ -2,15 +2,18 @@ package config
 
 import (
 	"log"
+	"time"
 
 	"github.com/ilyakaznacheev/cleanenv"
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	Port     int    `env:"PORT" env-default:"8080"`
-	Env      string `env:"ENV" env-default:"local"`
-	LogLevel string `env:"LOG_LEVEL" env-default:"info"`
+	Port           int           `env:"PORT" env-default:"8080"`
+	Env            string        `env:"ENV" env-default:"local"`
+	LogLevel       string        `env:"LOG_LEVEL" env-default:"info"`
+	IdleTimeout    time.Duration `env:"IDLE_TIMEOUT" env-default:"15s"`
+	RequestTimeout time.Duration `env:"REQ_TIMEOUT" env-default:"5s"`
 
 	AuthServiceEndpoint         string `env:"AUTH_SERVICE_ENDPOINT" env-required:"true"`
 	UserServiceEndpoint         string `env:"USER_SERVICE_ENDPOINT" env-required:"true"`

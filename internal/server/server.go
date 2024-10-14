@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -21,6 +22,8 @@ func NewServer() *Server {
 
 	logger := logger.New(config.Env, config.LogLevel)
 
+	logger.Debug("config is loaded", slog.Any("config", config))
+
 	endpoints := map[string]string{
 		"auth":         config.AuthServiceEndpoint,
 		"user":         config.UserServiceEndpoint,
@@ -32,7 +35,7 @@ func NewServer() *Server {
 		"group":        config.GroupServiceEndpoint,
 	}
 
-	gateway := gateway.NewGateway(config.Port, logger, endpoints)
+	gateway := gateway.NewGateway(config.Port, config.Env, logger, config.IdleTimeout, config.RequestTimeout, endpoints)
 
 	return &Server{gateway: gateway}
 }
@@ -49,7 +52,7 @@ func (s *Server) Run() {
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	<-c
 
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 3*time.Second)
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer shutdownCancel()
 
 	cancel()

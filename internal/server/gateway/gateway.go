@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	auth "github.com/kuromii5/sync-auth/api/sync-auth/v1"
+	"github.com/kuromii5/sync-gateway/internal/handlers/middleware"
 	"github.com/kuromii5/sync-gateway/internal/routes"
 	le "github.com/kuromii5/sync-gateway/pkg/logger/l_err"
 	"google.golang.org/grpc"
@@ -18,8 +20,11 @@ import (
 )
 
 type Gateway struct {
-	port   int
-	logger *slog.Logger
+	port           int
+	env            string
+	logger         *slog.Logger
+	idleTimeout    time.Duration
+	requestTimeout time.Duration
 
 	authEndpoint         string
 	userEndpoint         string
@@ -31,10 +36,13 @@ type Gateway struct {
 	groupEndpoint        string
 }
 
-func NewGateway(port int, logger *slog.Logger, endpoints map[string]string) *Gateway {
+func NewGateway(port int, env string, logger *slog.Logger, idleTimeout, requestTimeout time.Duration, endpoints map[string]string) *Gateway {
 	return &Gateway{
 		port:                 port,
+		env:                  env,
 		logger:               logger,
+		idleTimeout:          idleTimeout,
+		requestTimeout:       requestTimeout,
 		authEndpoint:         endpoints["auth"],
 		userEndpoint:         endpoints["user"],
 		feedEndpoint:         endpoints["feed"],
@@ -80,11 +88,20 @@ func (g *Gateway) Run(ctx context.Context) {
 
 	r.PathPrefix("/").Handler(mux)
 
-	handlerWithCORS := corsMiddleware(r)
+	isProd := g.env == "prod"
+	handler := middleware.LoggingMiddleware(g.logger, middleware.CookieMiddleware(isProd)(corsMiddleware(r)))
 
-	addr := fmt.Sprintf(":%d", g.port)
+	addr := fmt.Sprintf("localhost:%d", g.port)
+	srv := &http.Server{
+		Addr:         addr,
+		WriteTimeout: g.requestTimeout,
+		ReadTimeout:  g.requestTimeout,
+		IdleTimeout:  g.idleTimeout,
+		Handler:      handler,
+	}
+
 	g.logger.Info("Starting API gateway...", slog.String("addr", addr))
-	if err := http.ListenAndServe(addr, handlerWithCORS); err != nil {
+	if err := srv.ListenAndServe(); err != nil {
 		g.logger.Error("Failed to start API gateway", le.Err(err))
 	}
 }
